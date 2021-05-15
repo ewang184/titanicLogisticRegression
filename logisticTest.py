@@ -49,28 +49,75 @@ for ind in cleanDf.index:
         cleanDf['Age'][ind] = missingAgeList[ind]
 
 #correct fare
-correctFare = cleanDf.groupby(['Ticket'])
-lst = cleanDf['Ticket']
-
-# for every instance of data in groupby, divide the fare by the length of current group
-
-
-#make missing cabin values non missing
 
 #drop columns
-#cleanDf = df.drop(columns = ['Name'])
+cleanDf = cleanDf.drop(columns = ['Cabin'])
+cleanDf = cleanDf.drop(columns = ['Name'])
 cleanDf = cleanDf.drop(columns = ['Ticket'])
+cleanDf = cleanDf.drop(columns = ['Salutation'])
+
 
 #get model
-#x = cleanDf.drop(columns = ['Survived'])
-#x = x.to_numpy()
-#y = cleanDf["Survived"].values
-#model = LogisticRegression(solver='liblinear', random_state=0)
-#model.fit(x, y)
+x = cleanDf.drop(columns = ['Survived'])
+x = x.to_numpy()
+y = cleanDf["Survived"].values
+model = LogisticRegression(solver='liblinear', random_state=0)
+model.fit(x, y)
 
 
 
+#get test dataframe
+dft = pd.read_csv("./testData/test.csv")
 
-#dft = pd.read_csv("./testData/test.csv")
+#clean data
+cleanDf = dft
 
+#female is replaced with 1, male with 0
+gender = cleanDf['Sex']
+female = gender.str.contains("female")
+cleanDf['Sex'] = np.where(female, 1, 0)
 
+#C,S,Q are replaced with numerical values 1,2,3 respectively
+Embark = cleanDf['Embarked']
+cList = Embark.str.contains("C")
+sList = Embark.str.contains("S")
+cleanDf['Embarked'] = np.where(cList, 1, np.where(sList, 2, 3))
+#fill empty Embarked
+cleanDf.Embarked.fillna(cleanDf.Embarked.mode(), inplace = True)
+
+#fill empty Age
+cleanDf['Salutation'] = cleanDf.Name.apply(lambda name: name.split(',')[1].split('.')[0].strip())
+grp = cleanDf.groupby(['Salutation', 'Pclass'])
+ageMed = grp.Age.median()
+
+missingAgeList = []
+for ind in cleanDf.index:
+    Title = cleanDf['Salutation'][ind]
+    Class = cleanDf['Pclass'][ind]
+    if math.isnan(ageMed[Title,Class]):
+        missingAgeList.append(cleanDf['Age'].median())
+    else:
+        missingAgeList.append(ageMed[Title, Class])
+
+for ind in cleanDf.index:
+    age = cleanDf['Age'][ind]
+    if math.isnan(age):
+        cleanDf['Age'][ind] = missingAgeList[ind]
+
+#correct fare
+
+cleanDf['Fare'] = cleanDf['Fare'].fillna(cleanDf['Fare'].median())
+
+#drop columns
+cleanDf = cleanDf.drop(columns = ['Cabin'])
+cleanDf = cleanDf.drop(columns = ['Name'])
+cleanDf = cleanDf.drop(columns = ['Ticket'])
+cleanDf = cleanDf.drop(columns = ['Salutation'])
+
+testx = cleanDf
+lived = model.predict(testx)
+passId = cleanDf['PassengerId'].tolist()
+result = pd.DataFrame(passId, columns = ['PassengerId'])
+result['Survived'] = lived
+
+result.to_csv(r'./result/submission.csv', index = False)
